@@ -22,15 +22,15 @@ function facultyName(code) {
 }
 
 
-   CANONICAL SCHEDULE STRUCTURE
-   Lecture slots are 1 hr each; labs span 2 consecutive slots.
-   Break  10:30–10:45  (short break between morning sessions)
-   Lunch  12:45–1:30   (lunch break)
+  //  CANONICAL SCHEDULE STRUCTURE
+  //  Lecture slots are 1 hr each; labs span 2 consecutive slots.
+  //  Break  10:30–10:45  (short break between morning sessions)
+  //  Lunch  12:45–1:30   (lunch break)
 
-   SLOT_CONFIG drives BOTH the column headers AND cell layout.
-   type: 'slot'  → actual lecture/lab column  (minmax(110px,1fr))
-         'break' → narrow break separator      (48px)
-         'lunch' → slightly wider lunch sep    (56px)
+  //  SLOT_CONFIG drives BOTH the column headers AND cell layout.
+  //  type: 'slot'  → actual lecture/lab column  (minmax(110px,1fr))
+  //        'break' → narrow break separator      (48px)
+  //        'lunch' → slightly wider lunch sep    (56px)
 
 const SLOT_CONFIG = [
   { key: '8:30',  label: '8:30',  type: 'slot'  },
