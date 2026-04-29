@@ -1,12 +1,4 @@
-/* ══════════════════════════════════════════
-   TIMETABLE EXTRACTOR — script.js  v4
-   • Fixed canonical time slots (8:30–3:30)
-   • Break / Lunch separator columns in grid
-   • Full-grid PDF (no clipping, multi-page)
-   • Lab merging (2-hour span)
-   • Multi-entry cells
-   • MON–SAT rows always rendered
-══════════════════════════════════════════ */
+
 
 /* ─── FACULTY CODE → NAME MAP ─── */
 const FACULTY_MAP = {
@@ -29,7 +21,7 @@ function facultyName(code) {
   return FACULTY_MAP[String(code).trim().toUpperCase()] || String(code).trim();
 }
 
-/* ═══════════════════════════════════════════════════════════════
+
    CANONICAL SCHEDULE STRUCTURE
    Lecture slots are 1 hr each; labs span 2 consecutive slots.
    Break  10:30–10:45  (short break between morning sessions)
@@ -39,7 +31,7 @@ function facultyName(code) {
    type: 'slot'  → actual lecture/lab column  (minmax(110px,1fr))
          'break' → narrow break separator      (48px)
          'lunch' → slightly wider lunch sep    (56px)
-═══════════════════════════════════════════════════════════════ */
+
 const SLOT_CONFIG = [
   { key: '8:30',  label: '8:30',  type: 'slot'  },
   { key: '9:30',  label: '9:30',  type: 'slot'  },
@@ -130,9 +122,7 @@ const timetableGrid      = $el('timetableGrid');
 const downloadPdf        = $el('downloadPdf');
 const themeToggle        = $el('themeToggle');
 
-/* ══════════════════════════════════════════
-   THEME
-══════════════════════════════════════════ */
+
 function initTheme() {
   const saved = localStorage.getItem('tt-theme') || 'light';
   document.documentElement.setAttribute('data-theme', saved);
@@ -151,9 +141,7 @@ themeToggle.addEventListener('click', () => {
 });
 initTheme();
 
-/* ══════════════════════════════════════════
-   FILE UPLOAD / DRAG-DROP
-══════════════════════════════════════════ */
+
 uploadBox.addEventListener('click',     () => fileInput.click());
 uploadBox.addEventListener('dragover',  e  => { e.preventDefault(); uploadBox.classList.add('dragover'); });
 uploadBox.addEventListener('dragleave', () => uploadBox.classList.remove('dragover'));
@@ -183,9 +171,7 @@ function handleFile(file) {
   reader.readAsArrayBuffer(file);
 }
 
-/* ══════════════════════════════════════════
-   PREVIEW
-══════════════════════════════════════════ */
+
 previewBtn.addEventListener('click', () => {
   if (!state.workbook) { showError('File not loaded yet.'); return; }
   buildPreview();
@@ -222,9 +208,7 @@ function changeZoom(delta) {
   zoomLevelEl.textContent = Math.round(state.zoomLevel * 100) + '%';
 }
 
-/* ══════════════════════════════════════════
-   EXTRACT
-══════════════════════════════════════════ */
+
 extractBtn.addEventListener('click', async () => {
   if (!state.sheetData.length) return;
   const btnText    = extractBtn.querySelector('.btn-text');
@@ -245,9 +229,7 @@ extractBtn.addEventListener('click', async () => {
   btnText.style.display = 'inline'; btnSpinner.style.display = 'none'; extractBtn.disabled = false;
 });
 
-/* ══════════════════════════════════════════
-   PARSE TIMETABLE STRUCTURE
-══════════════════════════════════════════ */
+
 function parseTimetableStructure() {
   const data = state.sheetData;
   const dayCC = {}, timCC = {};
@@ -304,9 +286,7 @@ function parseTimetableStructure() {
   buildDivColMap();
 }
 
-/* ══════════════════════════════════════════
-   PARSE TEACHERS
-══════════════════════════════════════════ */
+
 function parseTeachers() {
   const data = state.sheetData;
   const known = new Set(Object.keys(FACULTY_MAP).map(k => k.toUpperCase()));
@@ -326,9 +306,7 @@ function parseTeachers() {
   console.log('[Teachers]', state.teachers);
 }
 
-/* ══════════════════════════════════════════
-   TEACHER LIST (SIDEBAR)
-══════════════════════════════════════════ */
+
 function buildTeacherList(filter = '') {
   teacherList.innerHTML = '';
   const q = filter.toLowerCase();
@@ -353,9 +331,7 @@ function buildTeacherList(filter = '') {
 }
 teacherSearch.addEventListener('input', () => buildTeacherList(teacherSearch.value));
 
-/* ══════════════════════════════════════════
-   SELECT TEACHER
-══════════════════════════════════════════ */
+
 function selectTeacher(code) {
   clearTimetable();
   state.selectedTeacher = code; state.subjectColorMap = {}; state.colorIndex = 0;
@@ -375,9 +351,7 @@ function getSubjectColor(subject) {
   return state.subjectColorMap[key];
 }
 
-/* ══════════════════════════════════════════
-   BUILD TIMETABLE GRID
-══════════════════════════════════════════ */
+
 function buildTimetableGrid(teacher) {
   const data = state.sheetData, dayCol = state.dayCol, timeCol = state.timeCol;
 
@@ -535,11 +509,6 @@ function buildTimetableGrid(teacher) {
   }
 }
 
-/* ══════════════════════════════════════════
-   SLOT KEY RESOLVER
-   Maps a normalised Excel time → nearest
-   canonical LECTURE_SLOTS key (±20 min tol.)
-══════════════════════════════════════════ */
 function resolveSlotKey(timeNorm) {
   const mins = parseTimeToMins(timeNorm);
   let best = null, bestDiff = Infinity;
@@ -568,9 +537,7 @@ function computeCssSpan(startKey, lectureSpan) {
   return cssSpan;
 }
 
-/* ══════════════════════════════════════════
-   CELL PARSING
-══════════════════════════════════════════ */
+
 function splitCellSegments(raw) {
   const lines = raw.split(/[\n\r]+/).map(s => s.trim()).filter(Boolean);
   const result = [];
@@ -622,9 +589,7 @@ function groupBySubject(entries) {
   return [...map.values()];
 }
 
-/* ══════════════════════════════════════════
-   HELPERS
-══════════════════════════════════════════ */
+
 function normaliseTime(raw) {
   const m = raw.match(/(\d{1,2})[:\.](\d{2})/); if (!m) return '';
   let h = parseInt(m[1]); const min = m[2];
