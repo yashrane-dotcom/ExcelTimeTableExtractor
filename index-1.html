@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Timetable Extractor</title>
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+
+  
+  <nav class="navbar">
+    <div class="nav-logo">
+      <span class="logo-icon">⬡</span>
+      <span class="logo-text">Timetable<em>Extractor</em></span>
+    </div>
+    <div class="nav-actions">
+      <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+        <span class="theme-icon">☀︎</span>
+      </button>
+    </div>
+  </nav>
+
+  
+  <section class="hero" id="hero">
+    <div class="hero-bg-orb orb1"></div>
+    <div class="hero-bg-orb orb2"></div>
+    <div class="hero-bg-orb orb3"></div>
+    <div class="hero-content">
+      <span class="hero-badge">✦ Smart Schedule Tool</span>
+      <h1 class="hero-title">
+        Extract any teacher's<br/>
+        <em>timetable instantly</em>
+      </h1>
+      <p class="hero-subtitle">
+        Upload your master Excel timetable and pull out<br class="hide-sm"/>
+        clean individual schedules in one click.
+      </p>
+      <button class="btn-primary hero-cta" onclick="document.getElementById('uploadSection').scrollIntoView({behavior:'smooth'})">
+        Get Started <span>↓</span>
+      </button>
+    </div>
+    <div class="hero-visual">
+      <div class="mock-card">
+        <div class="mock-row header">
+          <span></span><span>Mon</span><span>Tue</span><span>Wed</span>
+        </div>
+        <div class="mock-row"><span class="t">8:00</span><span class="s s1">Math</span><span class="s s2">Physics</span><span class="s s1">Math</span></div>
+        <div class="mock-row"><span class="t">9:00</span><span class="s s3">Lab</span><span class="s s1">Math</span><span class="s s4">English</span></div>
+        <div class="mock-row"><span class="t">10:00</span><span class="s s2">Physics</span><span class="s s3">Lab</span><span class="s s2">Physics</span></div>
+      </div>
+    </div>
+  </section>
+
+ 
+  <section class="section upload-section" id="uploadSection">
+    <div class="section-label">Step 01</div>
+    <h2 class="section-title">Upload your Excel file</h2>
+    <p class="section-sub">Supports <code>.xlsx</code> and <code>.xls</code> formats</p>
+
+    <div class="upload-box" id="uploadBox">
+      <div class="upload-icon">📂</div>
+      <p class="upload-text">Drag & drop your timetable here</p>
+      <p class="upload-hint">or click to browse files</p>
+      <input type="file" id="fileInput" accept=".xlsx,.xls" hidden />
+      <button class="btn-outline" onclick="document.getElementById('fileInput').click()">
+        Choose File
+      </button>
+    </div>
+
+    <div class="upload-meta" id="uploadMeta" style="display:none">
+      <div class="file-info">
+        <span class="file-icon">📄</span>
+        <span id="fileName" class="file-name"></span>
+        <button class="btn-ghost remove-btn" id="removeFile">✕</button>
+      </div>
+      <button class="btn-primary" id="previewBtn">Preview Table →</button>
+    </div>
+
+    <div class="error-msg" id="errorMsg" style="display:none">
+      ⚠️ <span id="errorText"></span>
+    </div>
+  </section>
+
+  <!-- ─── PREVIEW SECTION ─── -->
+  <section class="section preview-section" id="previewSection" style="display:none">
+    <div class="section-label">Step 02</div>
+    <h2 class="section-title">Preview your data</h2>
+    <p class="section-sub">Verify the content before extraction</p>
+
+    <div class="table-toolbar">
+      <span class="table-info" id="tableInfo"></span>
+      <div class="zoom-controls">
+        <button class="zoom-btn" id="zoomOut">−</button>
+        <span id="zoomLevel">100%</span>
+        <button class="zoom-btn" id="zoomIn">+</button>
+      </div>
+    </div>
+
+    <div class="table-wrapper">
+      <div class="table-scroll" id="tableScroll">
+        <table id="previewTable"></table>
+      </div>
+    </div>
+
+    <div class="extract-bar">
+      <button class="btn-primary btn-large" id="extractBtn">
+        <span class="btn-text">⚡ Extract Timetable</span>
+        <span class="btn-spinner" style="display:none">
+          <span class="spinner"></span> Processing…
+        </span>
+      </button>
+    </div>
+  </section>
+
+  <!-- ─── MAIN APP ─── -->
+  <div class="app-layout" id="appLayout" style="display:none">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <h3>Teachers</h3>
+        <button class="sidebar-toggle-close" id="sidebarClose">‹</button>
+      </div>
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="teacherSearch" placeholder="Search teacher…" class="search-input"/>
+      </div>
+      <ul class="teacher-list" id="teacherList"></ul>
+    </aside>
+
+    <button class="sidebar-open-btn" id="sidebarOpen" style="display:none">☰ Teachers</button>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content" id="mainContent">
+
+      <div class="content-placeholder" id="contentPlaceholder">
+        <div class="placeholder-icon">👈</div>
+        <p>Select a teacher from the sidebar<br/>to view their timetable</p>
+      </div>
+
+      <div class="timetable-view" id="timetableView" style="display:none">
+        <div class="timetable-header">
+          <div>
+            <h2 class="teacher-name-display" id="teacherNameDisplay"></h2>
+            <p class="timetable-week">Weekly Schedule</p>
+          </div>
+          <button class="btn-download" id="downloadPdf">
+            ⬇ Download PDF
+          </button>
+        </div>
+
+        <div class="legend" id="colorLegend"></div>
+
+        <div class="timetable-grid-wrap" id="timetableGridWrap">
+          <div class="timetable-grid" id="timetableGrid"></div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ─── FOOTER ─── -->
+  <footer class="footer">
+    <p>Made By Yash for educators · Timetable Extractor</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
