@@ -10,7 +10,7 @@
    ════════════════════════════════════════════════════════════════════ */
 
 /* ─── CONFIG ────────────────────────────────────────────────────── */
-const API_BASE = "http://localhost:3000";   // ← change if backend runs elsewhere
+const API_BASE = "http://127.0.0.1:8000";   // ← change if backend runs elsewhere
 
 /* ─── FACULTY MAP (for display names not in API response) ─────── */
 const FACULTY_MAP = {
@@ -146,8 +146,8 @@ removeFile.addEventListener('click', () => {
 function handleFile(file) {
   hideError();
   const ext = file.name.split('.').pop().toLowerCase();
-  if (!['xlsx','xls'].includes(ext)) {
-    showError('Invalid file type. Please upload a .xlsx or .xls file.'); return;
+  if (!['xlsx','xlsm'].includes(ext)) {
+    showError('Invalid file type. Please upload a .xlsx or .xlsm file.'); return;
   }
   fileName.textContent = file.name;
   uploadMeta.style.display = 'flex';
