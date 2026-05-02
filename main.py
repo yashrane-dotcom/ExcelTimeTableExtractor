@@ -1,77 +1,77 @@
 """
-main.py — FastAPI entry point for Timetable Extractor
-Handles file upload, CORS, and routes.
+main.py — FastAPI entry point for Timetable Extractor v4
+Adds /extract/full endpoint: full per-teacher + per-division split JSON.
 """
 
-import uuid, os, time
+import uuid
 from pathlib import Path
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
 
 from parser_engine import TimetableParser
-from models import UploadResponse, TeacherListResponse, TimetableResponse
+from models import UploadResponse, TeacherListResponse, TimetableResponse, CompactScheduleResponse
 
-# ─── App Setup ───────────────────────────────────────────────────────────────
+UPLOAD_DIR = Path("/tmp/timetable_uploads")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+_session_cache: dict[str, TimetableParser] = {}
+
 app = FastAPI(
     title="Timetable Extractor API",
-    version="2.0.0",
-    description="ML-assisted Excel timetable parsing backend",
+    version="4.0.0",
+    description="Extracts structured (teacher, division, room) data from Excel timetables.",
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # tighten in production
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ─── Temporary storage ────────────────────────────────────────────────────────
-UPLOAD_DIR = Path("/tmp/timetable_uploads")
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-# In-memory cache: session_id → TimetableParser instance
-_session_cache: dict[str, TimetableParser] = {}
+# ─── Helpers ──────────────────────────────────────────────────────────────────
 
-# ─── Helpers ─────────────────────────────────────────────────────────────────
 def get_parser(session_id: str) -> TimetableParser:
-    if session_id not in _session_cache:
-        raise HTTPException(404, detail=f"Session '{session_id}' not found. Please upload your file first.")
-    return _session_cache[session_id]
+    if session_id in _session_cache:
+        return _session_cache[session_id]
+    for ext in (".xlsx", ".xlsm"):
+        path = UPLOAD_DIR / f"{session_id}{ext}"
+        if path.exists():
+            parser = TimetableParser(str(path))
+            parser.parse()
+            _session_cache[session_id] = parser
+            return parser
+    raise HTTPException(404, detail=f"Session '{session_id}' not found.")
 
 
-# ─── Routes ──────────────────────────────────────────────────────────────────
+# ─── Routes ───────────────────────────────────────────────────────────────────
 
 @app.get("/")
 def root():
-    return {"status": "ok", "service": "Timetable Extractor API v2"}
+    return {"status": "ok", "service": "Timetable Extractor API v3"}
 
 
 @app.post("/upload", response_model=UploadResponse)
 async def upload_file(file: UploadFile = File(...)):
-    """
-    Accept an .xlsx / .xls file, parse it, and return a session_id.
-    All subsequent requests use this session_id.
-    """
+    """Upload an Excel timetable. Returns session_id for subsequent calls."""
     ext = Path(file.filename or "").suffix.lower()
-    if ext not in {".xlsx", ".xls"}:
-        raise HTTPException(400, detail="Only .xlsx and .xls files are supported.")
+    if ext not in {".xlsx", ".xlsm"}:
+        raise HTTPException(400, detail="Only .xlsx and .xlsm files are supported.")
 
-    # Save to disk
     session_id = uuid.uuid4().hex
     dest = UPLOAD_DIR / f"{session_id}{ext}"
-    contents = await file.read()
-    dest.write_bytes(contents)
+    dest.write_bytes(await file.read())
 
-    # Parse
     try:
         parser = TimetableParser(str(dest))
         parser.parse()
         _session_cache[session_id] = parser
     except Exception as e:
         dest.unlink(missing_ok=True)
-        raise HTTPException(422, detail=f"Failed to parse timetable: {e}")
+        raise HTTPException(422, detail=f"Failed to parse: {e}")
 
     return UploadResponse(
         session_id=session_id,
@@ -84,16 +84,51 @@ async def upload_file(file: UploadFile = File(...)):
     )
 
 
+@app.get("/extract/{session_id}", response_model=CompactScheduleResponse)
+def extract_compact(session_id: str):
+    """
+    Extract full timetable as compact strings with lab merging.
+    Output: {"MON": {"8:30": ["UPM SE-A 301"], "10:45": ["UPM SE-A Lab-204 [2hr]"]}}
+    """
+    parser = get_parser(session_id)
+    schedule = parser.extract_compact_schedule(merge_labs=True)
+    return CompactScheduleResponse(schedule=schedule)
+
+
+@app.get("/extract/full/{session_id}")
+def extract_full(session_id: str):
+    """
+    Split master timetable into per-teacher and per-division individual schedules.
+    Returns: {"teacher": {"UPM": {...}}, "division": {"SE-A": {...}}}
+    """
+    parser = get_parser(session_id)
+    return parser.extract_full_timetable_json()
+
+
+@app.get("/extract/cell")
+def extract_cell(text: str = Query(..., description="Raw cell text to parse")):
+    """
+    Debug endpoint: parse a single cell string and return extracted entities.
+    Useful for testing extraction logic without a full file.
+    Example: /extract/cell?text=DBMS (UPM) SE-A Room 301
+    """
+    from parser_engine import extract_entities
+    entities = extract_entities(text)
+    return {
+        "input":    text,
+        "entities": entities,
+        "compact":  [e["formatted"] for e in entities],
+    }
+
+
 @app.get("/teachers/{session_id}", response_model=TeacherListResponse)
 def get_teachers(session_id: str):
-    """Return list of detected teacher codes + display names."""
     parser = get_parser(session_id)
     return TeacherListResponse(teachers=parser.get_teachers_with_names())
 
 
 @app.get("/timetable/teacher/{session_id}/{code}", response_model=TimetableResponse)
 def get_teacher_timetable(session_id: str, code: str):
-    """Extract and return a teacher's weekly schedule."""
     parser = get_parser(session_id)
     code = code.upper().strip()
     if code not in parser.get_teacher_codes():
@@ -109,12 +144,10 @@ def get_teacher_timetable(session_id: str, code: str):
 
 @app.get("/timetable/division/{session_id}/{div}", response_model=TimetableResponse)
 def get_division_timetable(session_id: str, div: str):
-    """Extract and return a full division's weekly schedule."""
     parser = get_parser(session_id)
-    div = div.upper().strip()
-    schedule = parser.build_division_schedule(div)
+    schedule = parser.build_division_schedule(div.upper().strip())
     return TimetableResponse(
-        label=f"Division {div}",
+        label=f"Division {div.upper()}",
         schedule=schedule,
         slot_config=parser.slot_config_json(),
         fixed_days=parser.FIXED_DAYS,
@@ -123,13 +156,10 @@ def get_division_timetable(session_id: str, div: str):
 
 @app.get("/timetable/batch/{session_id}/{div}/{batch}", response_model=TimetableResponse)
 def get_batch_timetable(session_id: str, div: str, batch: str):
-    """Extract and return a batch's weekly schedule."""
     parser = get_parser(session_id)
-    div   = div.upper().strip()
-    batch = batch.upper().strip()
-    schedule = parser.build_batch_schedule(div, batch)
+    schedule = parser.build_batch_schedule(div.upper().strip(), batch.upper().strip())
     return TimetableResponse(
-        label=f"Division {div} · Batch {batch}",
+        label=f"Division {div.upper()} · Batch {batch.upper()}",
         schedule=schedule,
         slot_config=parser.slot_config_json(),
         fixed_days=parser.FIXED_DAYS,
@@ -138,7 +168,6 @@ def get_batch_timetable(session_id: str, div: str, batch: str):
 
 @app.delete("/session/{session_id}")
 def delete_session(session_id: str):
-    """Clean up a session from memory and disk."""
     _session_cache.pop(session_id, None)
     for ext in (".xlsx", ".xls"):
         f = UPLOAD_DIR / f"{session_id}{ext}"
@@ -146,6 +175,5 @@ def delete_session(session_id: str):
     return {"deleted": session_id}
 
 
-# ─── Entrypoint ───────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
